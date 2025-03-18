@@ -1,0 +1,148 @@
+#!/bin/bash
+
+# The help target prints out all targets with their descriptions organized
+# beneath their categories.
+# The categories are represented by '##@' and the target descriptions by '##'.
+# The awk commands is responsible for reading the entire set of makefiles
+# included in this invocation, looking for lines of the file as xyz: ## something,
+# and then pretty-format the target and help. Then, if there's a line starts with
+# ##@ something, that gets pretty-printed as a category.
+# The '##' also works on the variables.
+# More info on the usage of ANSI control characters for terminal formatting:
+# https://en.wikipedia.org/wiki/ANSI_escape_code#SGR_parameters
+# More info on the awk command:
+# https://linuxcommand.org/lc3_adv_awk.php
+# More info on the gawk command:
+# https://www.gnu.org/software/gawk/manual/gawk.html
+
+# This script displays help information for the Makefile.
+# Usage: ./help Makefile
+
+# Display help information
+help() {
+    help_usage
+    help_group_targets "$@"
+    # help_targets "$@"
+    help_variables "$@"
+    # help_examples
+}
+
+help_usage() {
+    printf "Usage: make \033[36m[TARGET]\033[0m \033[93m[VARIABLES]\033[0m\n"
+}
+
+# Display group targets
+help_group_targets() {
+    printf "\nTargets:\n"
+    awk '
+        BEGIN {
+            FS = ":.*##"
+        }
+        /^[a-zA-Z_0-9-]+:.*?##/ {
+            gsub(/(^ +)|( +$)/, "", $2)
+            printf "    \033[36m%-20s\033[0m%s\n", $1, $2
+        }
+        /^##@/ {
+            description = substr($0, 4)
+            gsub(/(^ +)|( +$)/, "", description)
+            printf "\n  \033[3;4m%s\033[0m:\n", description
+        }
+    ' $@
+}
+
+# Display targets
+help_targets() {
+    local pattern='^[a-zA-Z0-9._-]+:.*?##.*$'
+    local tmpfile=$(mktemp)
+
+    for file in $@; do
+        grep -E "$pattern" "$file" >>"$tmpfile"
+    done
+
+    local target
+    local description
+    printf "Targets:\n"
+    sort "$tmpfile" | while read -r line; do
+        target=${line%%:*}
+        description=${line#*##}
+        description="$(trim_string "$description")"
+        printf "  \033[36m%-20s\033[0m%s\n" "$target" "$description"
+    done
+}
+
+# Display variables
+help_variables() {
+    if [[ "$(command -v gawk)" ]]; then
+        help_variables_gawk "$@"
+    else
+        help_variables_default "$@"
+    fi
+}
+
+help_variables_gawk() {
+    printf "\nVariables:\n"
+    gawk '
+        match($0, /^([a-zA-Z0-9_-]+) [:?!+]?= ([^#]*?)##(.*)/, r) {
+            gsub(/(^ +)|( +$)/, "", r[3])
+            gsub(/(^ +)|( +$)/, "", r[2])
+            if (r[2] == "") {
+                printf "    \033[93m%-20s\033[0m%s\n", r[1], r[3]
+            } else {
+                printf "    \033[93m%-20s\033[0m%s \033[90m(default: %s)\033[0m\n", r[1], r[3], r[2]
+            }
+        }
+    ' $@ | sort
+}
+
+help_variables_default() {
+    local pattern='^[a-zA-Z0-9_-]+ [:?!+]?=.*?##.*$'
+    local tmpfile=$(mktemp)
+
+    for file in $@; do
+        grep -E "$pattern" "$file" >>"$tmpfile"
+    done
+
+    local variable
+    local default
+    local description
+    printf "\nVariables:\n"
+    sort "$tmpfile" | while read -r line; do
+        variable=${line%% *}
+        default=${line#*= }
+        default=${default%%##*}
+        description=${line##*##}
+
+        default="$(trim_string "$default")"
+        description="$(trim_string "$description")"
+        if [[ -z "${default}" ]]; then
+            printf "    \033[93m%-20s\033[0m%s\n" "$variable" "$description"
+        else
+            printf "    \033[93m%-20s\033[0m%s \033[90m(default: %s)\033[0m\n" "$variable" "$description" "$default"
+        fi
+    done
+}
+
+# Display examples
+help_examples() {
+    printf "\nExamples:\n"
+    printf "    make check\n"
+}
+
+trim_string() {
+    awk '{
+        gsub(/(^ +)|( +$)/, "")
+        print $0
+    }' <<<"$1"
+}
+
+main() {
+    if [[ $# -eq 0 ]]; then
+        echo "Usage: ./help Makefile"
+    else
+        help "$@"
+    fi
+    # Return exit code indicating success
+    exit 0
+}
+
+main "$@"

@@ -1,0 +1,57 @@
+name: Release
+
+permissions:
+  contents: write
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
+jobs:
+  build-and-release:
+    name: "Build and Release"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install `argc` for building binaries
+        uses: sigoden/install-binary@v1
+        with:
+          repo: sigoden/argc
+          tag: v1.22.0
+
+      - name: Install `shfmt` for formatting shell scripts
+        uses: sigoden/install-binary@v1
+        with:
+          repo: mvdan/sh
+          tag: v3.11.0
+          name: shfmt
+
+      - name: Compile and build binaries
+        run: make build
+
+      - name: Test binaries
+        run: make test
+
+      - name: Distribute binaries
+        run: make dist
+
+      - name: Release
+        uses: docker://antonyurchenko/git-release:v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: |
+            dist/*.tar.gz
+            dist/*.sha256
+
+      # - name: Update Homebrew formula
+      #   uses: dawidd6/action-homebrew-bump-formula@v4
+      #   with:
+      #     token: ${{ secrets.HOMEBREW_GITHUB_API_TOKEN }}
+      #     no_fork: true
+      #     tap: druagoon/homebrew-brew
+      #     formula: shinc
+      #     user_name: github-actions[bot]
+      #     user_email: 41898282+github-actions[bot]@users.noreply.github.com
