@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # @describe Generate bash cli script using `argc` command written in bash
-# @meta version 0.1.0
+# @meta version 1.0.0
 # @meta require-tools awk,sed,shfmt,yq
 # @meta inherit-flag-options
 # @flag -D --debug Enable debug mode
